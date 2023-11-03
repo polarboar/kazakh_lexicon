@@ -1,7 +1,7 @@
 import json
 from typing import List
 from collections import defaultdict
-from pydantic import BaseModel
+from pydantic import RootModel
 from pydantic.dataclasses import dataclass
 
 @dataclass
@@ -9,7 +9,8 @@ class Lemma:
     lemma: str 
     pos: str
     frequency: int
-    word_forms: dict
+    wordform_freq: dict
+    feats: set
 
 @dataclass
 class Token:
@@ -32,25 +33,41 @@ if __name__ == '__main__':
     f = open('sample_parsed_sentences.json')
     #f = open('test.json')
     data = json.load(f)
+    f.close()
     sentences = data['sentences']
     lemmas = {}
 
     for sentence in sentences:
-        print(f'sentence is: {sentence["sentence_text"]}')
+        #print(f'sentence is: {sentence["sentence_text"]}')
         sentence = Sentence(**sentence)
         for token in sentence.tokens:
-            lemma_text = token.lemma
-            if lemma_text in lemmas:
-                lemma = lemmas[lemma_text]
+            key = token.lemma + '_' + token.pos
+            #lemma_text = token.lemma
+            if key in lemmas:
+                lemma = lemmas[key]
                 lemma.frequency += 1
+                lemma.feats.add(token.feats)
                 word_form = token.text
-                if word_form in lemma.word_forms:
-                    lemma.word_forms[word_form] += 1
+                #lemma.pos.add(token.pos)
+                if word_form in lemma.wordform_freq:
+                    lemma.wordform_freq[word_form] += 1
                 else:
-                    lemma.word_forms[word_form] = 1
+                    lemma.wordform_freq[word_form] = 1
             else:
-                lemmas[lemma_text] = Lemma(lemma = lemma_text, pos = token.pos, frequency = 1, word_forms = {token.text : 1})
+                lemmas[key] = Lemma(lemma = token.lemma, pos = token.pos, frequency = 1, wordform_freq = {token.text : 1}, feats = set())
+                if token.feats is not None:
+                    lemmas[key].feats.add(token.feats)
 
     print(f'Unique lemmas: {len(lemmas)}')
-    print(lemmas)
+
+    output_filename = 'lemma_lexicon.json'
+    with open(output_filename, 'w') as outfile:
+        lemma_list = lemmas.values()
+        outfile.write(RootModel[List[Lemma]](lemma_list).model_dump_json(indent=2))
+        #for key in lemmas:
+        #    lemma = lemmas[key]
+        #    outfile.write(RootModel[Lemma](lemma).model_dump_json(indent=2))
+        #    print(lemma)
+
+    
 
